@@ -276,7 +276,8 @@ export const useStravaStore = defineStore('strava', {
       this.error = null;
       try {
         // Fetch generated sample activities CSV
-        const res = await fetch('/sample_data/activities.csv');
+        const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/?$/, '/');
+        const res = await fetch(`${baseUrl}sample_data/activities.csv`);
         if (!res.ok) {
           throw new Error('Could not load sample_data/activities.csv. Please ensure it is present in public/sample_data.');
         }

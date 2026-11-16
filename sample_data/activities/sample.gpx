@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="StravaGPX" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <time>2026-10-14T06:30:00Z</time>
+  </metadata>
+  <trk>
+    <name>Sunday Morning Run</name>
+    <type>Run</type>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194"><ele>15.0</ele><time>2026-10-14T06:30:00Z</time></trkpt>
+      <trkpt lat="37.7755" lon="-122.4182"><ele>16.2</ele><time>2026-10-14T06:31:00Z</time></trkpt>
+      <trkpt lat="37.7768" lon="-122.4168"><ele>18.5</ele><time>2026-10-14T06:32:00Z</time></trkpt>
+      <trkpt lat="37.7782" lon="-122.4150"><ele>22.0</ele><time>2026-10-14T06:33:30Z</time></trkpt>
+      <trkpt lat="37.7795" lon="-122.4132"><ele>25.4</ele><time>2026-10-14T06:35:00Z</time></trkpt>
+      <trkpt lat="37.7810" lon="-122.4110"><ele>28.0</ele><time>2026-10-14T06:37:00Z</time></trkpt>
+      <trkpt lat="37.7830" lon="-122.4080"><ele>32.5</ele><time>2026-10-14T06:40:00Z</time></trkpt>
+      <trkpt lat="37.7850" lon="-122.4050"><ele>35.0</ele><time>2026-10-14T06:43:00Z</time></trkpt>
+      <trkpt lat="37.7840" lon="-122.4020"><ele>31.0</ele><time>2026-10-14T06:46:00Z</time></trkpt>
+      <trkpt lat="37.7800" lon="-122.4050"><ele>24.0</ele><time>2026-10-14T06:50:00Z</time></trkpt>
+      <trkpt lat="37.7760" lon="-122.4100"><ele>19.0</ele><time>2026-10-14T06:55:00Z</time></trkpt>
+      <trkpt lat="37.7749" lon="-122.4194"><ele>15.0</ele><time>2026-10-14T07:00:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

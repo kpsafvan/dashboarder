@@ -13,10 +13,10 @@ permissions:
 
 concurrency:
   group: 'pages'
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -40,7 +40,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
 
-      # Optional direct GitHub Actions Pages deployment
       - name: Setup GitHub Pages
         id: pages
         uses: actions/configure-pages@v5
@@ -53,8 +52,14 @@ jobs:
           path: './dist'
         continue-on-error: true
 
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       - name: Deploy to GitHub Pages
-        if: steps.pages.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@v4
         continue-on-error: true

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { toRaw } from 'vue';
 import { get, set, del } from 'idb-keyval';
 import type {
   NormalizedActivity,
@@ -24,6 +25,14 @@ import {
 const DB_ACTIVITIES_KEY = 'strava_dashboard_activities';
 const DB_ROUTES_KEY = 'strava_dashboard_routes';
 const DB_SETTINGS_KEY = 'strava_dashboard_settings';
+
+function toCloneable<T>(val: T): any {
+  try {
+    return JSON.parse(JSON.stringify(toRaw(val)));
+  } catch {
+    return toRaw(val);
+  }
+}
 
 export const useStravaStore = defineStore('strava', {
   state: () => ({
@@ -244,12 +253,16 @@ export const useStravaStore = defineStore('strava', {
     },
 
     async saveSettings() {
-      await set(DB_SETTINGS_KEY, {
-        unitSystem: this.unitSystem,
-        maxHeartRate: this.maxHeartRate,
-        ftp: this.ftp,
-        annualDistanceGoal: this.annualDistanceGoal,
-      });
+      try {
+        await set(DB_SETTINGS_KEY, {
+          unitSystem: this.unitSystem,
+          maxHeartRate: this.maxHeartRate,
+          ftp: this.ftp,
+          annualDistanceGoal: this.annualDistanceGoal,
+        });
+      } catch (err) {
+        console.warn('Could not save settings to IndexedDB:', err);
+      }
     },
 
     async loadFile(file: File) {
@@ -261,8 +274,12 @@ export const useStravaStore = defineStore('strava', {
         if (result.routeCoordinates) {
           this.routeCoordinates = result.routeCoordinates;
         }
-        await set(DB_ACTIVITIES_KEY, this.activities);
-        await set(DB_ROUTES_KEY, this.routeCoordinates);
+        try {
+          await set(DB_ACTIVITIES_KEY, toCloneable(result.activities));
+          await set(DB_ROUTES_KEY, toCloneable(result.routeCoordinates || {}));
+        } catch (idbErr) {
+          console.warn('Could not cache to IndexedDB:', idbErr);
+        }
       } catch (err: any) {
         this.error = err.message || 'Failed to process file.';
         throw err;
@@ -286,7 +303,7 @@ export const useStravaStore = defineStore('strava', {
         this.activities = activities;
         
         // Add sample route coordinates
-        this.routeCoordinates = {
+        const demoRoutes: Record<string, [number, number][]> = {
           'sample_run': [
             [37.7749, -122.4194],
             [37.7755, -122.4182],
@@ -302,9 +319,14 @@ export const useStravaStore = defineStore('strava', {
             [37.7749, -122.4194]
           ]
         };
+        this.routeCoordinates = demoRoutes;
 
-        await set(DB_ACTIVITIES_KEY, this.activities);
-        await set(DB_ROUTES_KEY, this.routeCoordinates);
+        try {
+          await set(DB_ACTIVITIES_KEY, toCloneable(activities));
+          await set(DB_ROUTES_KEY, toCloneable(demoRoutes));
+        } catch (idbErr) {
+          console.warn('Could not cache to IndexedDB:', idbErr);
+        }
       } catch (err: any) {
         this.error = err.message || 'Failed to load demo dataset.';
         throw err;
@@ -316,8 +338,12 @@ export const useStravaStore = defineStore('strava', {
     async clearData() {
       this.activities = [];
       this.routeCoordinates = {};
-      await del(DB_ACTIVITIES_KEY);
-      await del(DB_ROUTES_KEY);
+      try {
+        await del(DB_ACTIVITIES_KEY);
+        await del(DB_ROUTES_KEY);
+      } catch (err) {
+        console.warn('Could not clear IndexedDB:', err);
+      }
     },
 
     setSportFilter(sport: SportFilter) {

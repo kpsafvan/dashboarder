@@ -224,7 +224,7 @@
       </div>
 
       <div class="overflow-x-auto pb-2">
-        <div class="inline-grid grid-rows-7 grid-flow-col gap-1.5">
+        <div class="inline-grid grid-flow-col gap-1.5" style="grid-template-rows: repeat(7, minmax(0, 1fr));">
           <div
             v-for="(day, idx) in yearHeatmapDays"
             :key="idx"
@@ -249,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { useStravaStore } from '../../stores/stravaStore';
 
@@ -320,6 +320,13 @@ const yearHighlights = computed(() => {
   };
 });
 
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Heatmap generator (365 days of current year)
 const yearHeatmapDays = computed(() => {
   const year = store.currentYear;
@@ -327,7 +334,7 @@ const yearHeatmapDays = computed(() => {
   const map: Record<string, number> = {};
 
   for (const act of store.thisYearActivities) {
-    const key = act.date.toISOString().split('T')[0];
+    const key = toLocalDateKey(act.date);
     const dist = store.unitSystem === 'metric' ? act.distanceKm : act.distanceMiles;
     map[key] = (map[key] || 0) + dist;
   }
@@ -337,7 +344,7 @@ const yearHeatmapDays = computed(() => {
   const cur = new Date(start);
 
   while (cur <= end) {
-    const key = cur.toISOString().split('T')[0];
+    const key = toLocalDateKey(cur);
     days.push({
       date: key,
       distance: parseFloat((map[key] || 0).toFixed(1)),
@@ -437,6 +444,7 @@ function renderCumulativeChart() {
   };
 
   cumulativeChart.setOption(option, true);
+  cumulativeChart.resize();
 }
 
 function renderMonthlyChart() {
@@ -465,6 +473,7 @@ function renderMonthlyChart() {
       backgroundColor: '#0F172A',
       borderColor: '#334155',
       textStyle: { color: '#F1F5F9' },
+      valueFormatter: (value: any) => `${value} ${store.unitSystem === 'metric' ? 'km' : 'mi'}`,
     },
     legend: {
       textStyle: { color: '#94A3B8' },
@@ -516,6 +525,7 @@ function renderMonthlyChart() {
   };
 
   monthlyChart.setOption(option, true);
+  monthlyChart.resize();
 }
 
 function handleResize() {
@@ -524,8 +534,10 @@ function handleResize() {
 }
 
 onMounted(() => {
-  renderCumulativeChart();
-  renderMonthlyChart();
+  nextTick(() => {
+    renderCumulativeChart();
+    renderMonthlyChart();
+  });
   window.addEventListener('resize', handleResize);
 });
 
@@ -536,10 +548,12 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [store.activities, store.sportFilter, store.unitSystem],
+  () => [store.thisYearActivities, store.sportFilter, store.unitSystem],
   () => {
-    renderCumulativeChart();
-    renderMonthlyChart();
+    nextTick(() => {
+      renderCumulativeChart();
+      renderMonthlyChart();
+    });
   },
   { deep: true }
 );

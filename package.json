@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && node -e \"fs.copyFileSync('dist/index.html', 'dist/404.html')\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:sample": "node scripts/generate_sample_data.cjs"
   },
   "dependencies": {
     "echarts": "^5.5.0",

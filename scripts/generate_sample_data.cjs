@@ -1,8 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const JSZip = require('jszip');
 
-// Target output path
+// Target output paths
 const outCsvPath = path.join(__dirname, '..', 'sample_data', 'activities.csv');
+const publicCsvPath = path.join(__dirname, '..', 'public', 'sample_data', 'activities.csv');
+const sampleZipPath = path.join(__dirname, '..', 'sample_data', 'strava_export_sample.zip');
+const publicZipPath = path.join(__dirname, '..', 'public', 'sample_data', 'strava_export_sample.zip');
+const sampleGpxPath = path.join(__dirname, '..', 'sample_data', 'activities', 'sample.gpx');
 
 const sports = [
   { type: 'Run', weight: 0.55 },
@@ -49,7 +54,7 @@ function getRandomFloat(min, max, decimals = 2) {
 }
 
 function formatDate(date) {
-  // Format like Strava: "Jan 14, 2024, 7:15:30 AM" or ISO
+  // Format like Strava: "Jan 14, 2024, 7:15:30 AM"
   const options = {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', second: '2-digit',
@@ -232,7 +237,7 @@ while (currentDate <= endDate) {
 
     const row = [
       activityId,
-      formatDate(activityDate),
+      `"${formatDate(activityDate)}"`, // Note: quotes are essential because the date string contains commas!
       `"${title}"`,
       sport,
       `""`,
@@ -272,5 +277,18 @@ while (currentDate <= endDate) {
 
 const csvContent = headers.join(',') + '\n' + rows.join('\n');
 fs.writeFileSync(outCsvPath, csvContent, 'utf8');
+fs.writeFileSync(publicCsvPath, csvContent, 'utf8');
+console.log(`Generated ${rows.length} sample activities in ${outCsvPath} and ${publicCsvPath}`);
 
-console.log(`Generated ${rows.length} sample activities in ${outCsvPath}`);
+// Create zip archives
+const zip = new JSZip();
+zip.file('activities.csv', csvContent);
+if (fs.existsSync(sampleGpxPath)) {
+  zip.file('activities/sample.gpx', fs.readFileSync(sampleGpxPath, 'utf8'));
+}
+
+zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }).then((buffer) => {
+  fs.writeFileSync(sampleZipPath, buffer);
+  fs.writeFileSync(publicZipPath, buffer);
+  console.log(`Generated sample archives: ${sampleZipPath} and ${publicZipPath}`);
+});

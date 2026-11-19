@@ -35,6 +35,50 @@ function getDayOfYear(date: Date): number {
   return Math.floor(diff / oneDay);
 }
 
+export function parseDate(rawDateStr: any): Date | null {
+  if (!rawDateStr) return null;
+  const str = String(rawDateStr).trim().replace(/^["']|["']$/g, '');
+  if (!str) return null;
+
+  // 1. Try standard Date parsing
+  let d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    // Sanity check year: if string has 4-digit year like 2024 but Date parsed as 2001, reject
+    const yearMatch = str.match(/\b(19\d\d|20\d\d)\b/);
+    if (!yearMatch || d.getFullYear() === parseInt(yearMatch[1], 10)) {
+      return d;
+    }
+  }
+
+  // 2. Try DD/MM/YYYY or DD.MM.YYYY or DD-MM-YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?/i);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    const year = parseInt(dmyMatch[3], 10);
+    let hours = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    const minutes = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    const seconds = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    const ampm = dmyMatch[7] ? dmyMatch[7].toUpperCase() : null;
+
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+
+    d = new Date(year, month, day, hours, minutes, seconds);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // 3. Try "DD Mon YYYY, HH:MM:SS" (e.g. "12 May 2024, 06:30:15")
+  const textDateMatch = str.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})(?:,\s*(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?/i);
+  if (textDateMatch) {
+    const formatted = `${textDateMatch[2]} ${textDateMatch[1]}, ${textDateMatch[3]} ${textDateMatch[4] || '00'}:${textDateMatch[5] || '00'}:${textDateMatch[6] || '00'} ${textDateMatch[7] || ''}`;
+    d = new Date(formatted);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}
+
 export function normalizeRawRow(raw: Record<string, any>): NormalizedActivity | null {
   // Build a mapped lookup by cleaned header
   const map: Record<string, any> = {};
@@ -46,8 +90,8 @@ export function normalizeRawRow(raw: Record<string, any>): NormalizedActivity | 
   const rawDateStr = map['activitydate'] || map['date'] || map['startdate'] || '';
   if (!rawDateStr) return null;
 
-  const date = new Date(rawDateStr);
-  if (isNaN(date.getTime())) return null;
+  const date = parseDate(rawDateStr);
+  if (!date || isNaN(date.getTime())) return null;
 
   const title = map['activityname'] || map['name'] || map['title'] || 'Workout';
   const rawSport = map['activitytype'] || map['type'] || 'Other';

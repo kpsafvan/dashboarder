@@ -98,15 +98,38 @@ export function normalizeRawRow(raw: Record<string, any>): NormalizedActivity | 
   const sport = parseSportType(rawSport);
   const description = map['activitydescription'] || map['description'] || '';
 
-  const distanceMeters = parseNumber(map['distance']);
-  const movingTimeSec = parseNumber(map['movingtime']);
-  const elapsedTimeSec = parseNumber(map['elapsedtime']) || movingTimeSec;
+  const movingTimeSec = parseNumber(map['movingtime']) || parseNumber(map['elapsedtime']) || parseNumber(map['elapsedtime1']);
+  const elapsedTimeSec = parseNumber(map['elapsedtime1']) || parseNumber(map['elapsedtime']) || movingTimeSec;
+
+  // Handle Strava duplicate Distance headers and unit detection:
+  // In official Strava export:
+  // 1. First column "Distance" is in user's display units (e.g. 3.85 km).
+  // 2. Second column "Distance" (renamed to "Distance_1" / map['distance1'] by PapaParse) is ALWAYS in raw METERS (e.g. 3851.1 m).
+  let distanceMeters = 0;
+  const rawDistMeters = parseNumber(map['distance1']);
+  const rawDistUser = parseNumber(map['distance']);
+
+  if (rawDistMeters > 0) {
+    distanceMeters = rawDistMeters;
+  } else if (rawDistUser > 0) {
+    // If only one distance column exists:
+    // If distance value is small (< 150) and movingTimeSec > 60, it is almost certainly in kilometers (e.g. 5.2 km vs 5.2 m).
+    if (movingTimeSec > 60 && rawDistUser < 150) {
+      distanceMeters = rawDistUser * 1000;
+    } else {
+      distanceMeters = rawDistUser;
+    }
+  }
 
   const elevationGainM = parseNumber(map['elevationgain'] || map['totalgrade']);
   const elevationLossM = parseNumber(map['elevationloss']);
 
-  const avgSpeedMs = parseNumber(map['averagespeed'] || map['avgspeed']);
+  let avgSpeedMs = parseNumber(map['averagespeed'] || map['avgspeed']);
   const maxSpeedMs = parseNumber(map['maxspeed']);
+
+  if (avgSpeedMs === 0 && distanceMeters > 0 && movingTimeSec > 0) {
+    avgSpeedMs = distanceMeters / movingTimeSec;
+  }
 
   // Speed and Pace conversions
   const speedKmh = avgSpeedMs * 3.6;
@@ -122,17 +145,17 @@ export function normalizeRawRow(raw: Record<string, any>): NormalizedActivity | 
   const paceMinPerMile = paceMinPerKm * 1.60934;
 
   const avgHeartRate = parseNullableNumber(map['averageheartrate'] || map['avghr'] || map['heartrate']);
-  const maxHeartRate = parseNullableNumber(map['maxheartrate'] || map['maxhr']);
+  const maxHeartRate = parseNullableNumber(map['maxheartrate1'] || map['maxheartrate'] || map['maxhr']);
 
   const avgWatts = parseNullableNumber(map['averagewatts'] || map['avgwatts'] || map['watts']);
   const maxWatts = parseNullableNumber(map['maxwatts']);
   const weightedWatts = parseNullableNumber(map['weightedaveragepower'] || map['normalizedpower'] || map['weightedwatts']);
   const kilojoules = parseNullableNumber(map['kilojoules'] || map['work']);
   const avgCadence = parseNullableNumber(map['averagecadence'] || map['avgcadence'] || map['cadence']);
-  const relativeEffort = parseNullableNumber(map['relativeeffort'] || map['effort'] || map['sufferscore'] || map['trimp']);
+  const relativeEffort = parseNullableNumber(map['relativeeffort1'] || map['relativeeffort'] || map['effort'] || map['sufferscore'] || map['trimp']);
 
-  const isCommute = String(map['commute'] || '').toLowerCase() === 'true';
-  const gear = (map['activitygear'] || map['gear'] || '').trim();
+  const isCommute = String(map['commute'] || map['commute1'] || '').toLowerCase() === 'true';
+  const gear = (map['activitygear'] || (map['gear'] && isNaN(Number(map['gear'])) ? map['gear'] : '') || '').trim();
   const filename = map['filename'] || '';
   const athleteWeightKg = parseNullableNumber(map['athleteweight']);
   const bikeWeightKg = parseNullableNumber(map['bikeweight']);

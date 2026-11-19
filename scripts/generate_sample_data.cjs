@@ -10,11 +10,18 @@ const publicZipPath = path.join(__dirname, '..', 'public', 'sample_data', 'strav
 const sampleGpxPath = path.join(__dirname, '..', 'sample_data', 'activities', 'sample.gpx');
 
 const sports = [
-  { type: 'Run', weight: 0.55 },
-  { type: 'Ride', weight: 0.30 },
+  { type: 'Run', weight: 0.38 },
+  { type: 'Ride', weight: 0.22 },
+  { type: 'Workout', weight: 0.26 },
   { type: 'Walk', weight: 0.08 },
-  { type: 'Hike', weight: 0.04 },
+  { type: 'Hike', weight: 0.03 },
   { type: 'Swim', weight: 0.03 }
+];
+
+const workoutTitles = [
+  'Push Day (Chest, Delts, Triceps)', 'Pull Day & Core Conditioning',
+  'Leg Day Hypertrophy', 'HIIT Circuit & Agility', 'Upper Body Strength',
+  'Morning Gym Workout', 'Full Body Functional Strength', 'Evening Strength Session'
 ];
 
 const shoes = [
@@ -212,6 +219,18 @@ while (currentDate <= endDate) {
       avgHr = getRandomInt(115, 138);
       maxHr = avgHr + getRandomInt(15, 25);
       relEffort = getRandomInt(40, 95);
+    } else if (sport === 'Workout') {
+      title = workoutTitles[getRandomInt(0, workoutTitles.length - 1)];
+      distanceMeters = 0;
+      movingTimeSec = getRandomInt(45, 90) * 60;
+      elapsedTimeSec = movingTimeSec + getRandomInt(120, 600);
+      maxSpeedMs = 0;
+      avgSpeedMs = 0;
+      elevGainM = 0;
+      avgHr = getRandomInt(115, 142);
+      maxHr = avgHr + getRandomInt(20, 38);
+      relEffort = Math.round((movingTimeSec / 60) * 0.7);
+      gear = '';
     } else if (sport === 'Swim') {
       title = swimTitles[getRandomInt(0, swimTitles.length - 1)];
       const distanceKm = getRandomFloat(1.5, 3.2);

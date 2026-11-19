@@ -8,6 +8,13 @@ import type {
   UnitSystem,
 } from '../types/strava';
 
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * Banister Impulse-Response Fitness & Freshness Model
  * Time constants: Fitness (CTL) = 42 days, Fatigue (ATL) = 7 days.
@@ -32,7 +39,7 @@ export function computeBanisterFitnessModel(
 
   // Calculate stress for each activity
   for (const act of activities) {
-    const key = act.date.toISOString().split('T')[0];
+    const key = toLocalDateKey(act.date);
     if (!dailyStress[key]) {
       dailyStress[key] = { stress: 0, effortSum: 0, count: 0 };
     }
@@ -57,7 +64,7 @@ export function computeBanisterFitnessModel(
     // 4. Fallback based on moving duration & sport intensity
     else if (act.movingTimeSec > 0) {
       const minutes = act.movingTimeSec / 60;
-      const factor = act.sport === 'Run' ? 1.0 : (act.sport === 'Ride' ? 0.6 : 0.4);
+      const factor = act.sport === 'Run' ? 1.0 : (act.sport === 'Ride' ? 0.6 : (act.sport === 'Workout' ? 0.75 : 0.4));
       stress = minutes * factor;
     }
 
@@ -76,7 +83,7 @@ export function computeBanisterFitnessModel(
 
   const cur = new Date(firstDate);
   while (cur <= lastDate) {
-    const dateKey = cur.toISOString().split('T')[0];
+    const dateKey = toLocalDateKey(cur);
     const dayData = dailyStress[dateKey] || { stress: 0, effortSum: 0, count: 0 };
 
     ctl = ctl + (dayData.stress - ctl) * ctlDecay;

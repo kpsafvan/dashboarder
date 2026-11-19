@@ -30,13 +30,13 @@
       </div>
 
       <!-- Sport Filter Pills -->
-      <div v-if="store.hasData" class="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs">
+      <div v-if="store.hasData" class="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs overflow-x-auto max-w-full">
         <button
           v-for="sport in sports"
           :key="sport.value"
           @click="store.setSportFilter(sport.value)"
           :class="[
-            'px-3 py-1.5 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5',
+            'px-3 py-1.5 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap',
             store.sportFilter === sport.value
               ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
@@ -110,8 +110,10 @@ const sports: { label: string; value: SportFilter; icon: string }[] = [
   { label: 'All', value: 'All', icon: '⚡' },
   { label: 'Run', value: 'Run', icon: '🏃' },
   { label: 'Ride', value: 'Ride', icon: '🚴' },
-  { label: 'Swim', value: 'Swim', icon: '🏊' },
+  { label: 'Workout', value: 'Workout', icon: '🏋️' },
+  { label: 'Walk', value: 'Walk', icon: '🚶' },
   { label: 'Hike', value: 'Hike', icon: '🥾' },
+  { label: 'Swim', value: 'Swim', icon: '🏊' },
 ];
 
 function confirmClear() {

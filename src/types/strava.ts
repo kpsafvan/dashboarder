@@ -1,5 +1,5 @@
-export type SportType = 'Run' | 'Ride' | 'Swim' | 'Walk' | 'Hike' | 'Other';
-export type SportFilter = 'All' | 'Run' | 'Ride' | 'Swim' | 'Walk' | 'Hike' | 'Other';
+export type SportType = 'Run' | 'Ride' | 'Swim' | 'Walk' | 'Hike' | 'Workout' | 'Other';
+export type SportFilter = 'All' | 'Run' | 'Ride' | 'Workout' | 'Walk' | 'Hike' | 'Swim' | 'Other';
 export type UnitSystem = 'metric' | 'imperial';
 export type DateRangeFilter = 'this_year' | 'last_year' | 'lifetime' | 'last_90' | 'last_30' | 'custom';
 export type ActiveTab = 'this_year' | 'lifetime' | 'fitness' | 'gear' | 'routes' | 'explorer';
@@ -36,13 +36,14 @@ export interface NormalizedActivity {
   paceMinPerKm: number; // in decimal minutes (e.g. 5.5 = 5:30)
   paceMinPerMile: number;
   
-  // Cardiovascular & Power
+  // Cardiovascular, Power & Caloric
   avgHeartRate: number | null;
   maxHeartRate: number | null;
   avgWatts: number | null;
   maxWatts: number | null;
   weightedWatts: number | null; // NP
   kilojoules: number | null;
+  calories: number | null;
   avgCadence: number | null;
   relativeEffort: number | null; // TRIMP or Strava relative effort
   

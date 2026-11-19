@@ -13,6 +13,23 @@ function parseSportType(rawType: string): SportType {
   if (t.includes('swim')) return 'Swim';
   if (t.includes('walk')) return 'Walk';
   if (t.includes('hike')) return 'Hike';
+  if (
+    t.includes('workout') ||
+    t.includes('weight') ||
+    t.includes('gym') ||
+    t.includes('strength') ||
+    t.includes('crossfit') ||
+    t.includes('fitness') ||
+    t.includes('training') ||
+    t.includes('elliptical') ||
+    t.includes('cardio') ||
+    t.includes('pilates') ||
+    t.includes('yoga') ||
+    t.includes('hiit') ||
+    t.includes('core')
+  ) {
+    return 'Workout';
+  }
   return 'Other';
 }
 
@@ -151,6 +168,7 @@ export function normalizeRawRow(raw: Record<string, any>): NormalizedActivity | 
   const maxWatts = parseNullableNumber(map['maxwatts']);
   const weightedWatts = parseNullableNumber(map['weightedaveragepower'] || map['normalizedpower'] || map['weightedwatts']);
   const kilojoules = parseNullableNumber(map['kilojoules'] || map['work']);
+  const calories = parseNullableNumber(map['calories']);
   const avgCadence = parseNullableNumber(map['averagecadence'] || map['avgcadence'] || map['cadence']);
   const relativeEffort = parseNullableNumber(map['relativeeffort1'] || map['relativeeffort'] || map['effort'] || map['sufferscore'] || map['trimp']);
 
@@ -191,6 +209,7 @@ export function normalizeRawRow(raw: Record<string, any>): NormalizedActivity | 
     maxWatts,
     weightedWatts,
     kilojoules,
+    calories,
     avgCadence,
     relativeEffort,
     isCommute,

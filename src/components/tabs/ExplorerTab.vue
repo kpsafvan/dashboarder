@@ -9,13 +9,13 @@
             🔍 Activity Explorer
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Search, sort, and inspect every workout in your training history.
+            Search, sort, and inspect every workout, run, ride, and gym session in your training history.
           </p>
         </div>
 
-        <!-- Search Input -->
-        <div class="flex items-center gap-2">
-          <div class="relative w-full md:w-72">
+        <!-- Search Input & Sort -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="relative w-full sm:w-72">
             <input
               v-model="searchQuery"
               type="text"
@@ -32,9 +32,11 @@
           >
             <option value="date_desc">Newest First</option>
             <option value="date_asc">Oldest First</option>
-            <option value="dist_desc">Highest Distance</option>
-            <option value="elev_desc">Biggest Climb</option>
             <option value="time_desc">Longest Duration</option>
+            <option value="dist_desc">Highest Distance</option>
+            <option value="hr_desc">Highest Heart Rate</option>
+            <option value="cal_desc">Most Calories</option>
+            <option value="elev_desc">Biggest Climb</option>
           </select>
         </div>
       </div>
@@ -50,11 +52,11 @@
               <th class="py-3 px-3 font-semibold">Activity</th>
               <th class="py-3 px-3 font-semibold">Sport</th>
               <th class="py-3 px-3 font-semibold text-right">Distance</th>
-              <th class="py-3 px-3 font-semibold text-right">Time</th>
-              <th class="py-3 px-3 font-semibold text-right">Elevation</th>
+              <th class="py-3 px-3 font-semibold text-right">Duration</th>
+              <th class="py-3 px-3 font-semibold text-right">Heart Rate</th>
+              <th class="py-3 px-3 font-semibold text-right">Calories</th>
               <th class="py-3 px-3 font-semibold text-right">Pace / Speed</th>
-              <th class="py-3 px-3 font-semibold text-right">Avg HR</th>
-              <th class="py-3 px-3 font-semibold text-right">Effort</th>
+              <th class="py-3 px-3 font-semibold text-right">Elevation</th>
               <th class="py-3 px-3 font-semibold">Gear</th>
             </tr>
           </thead>
@@ -77,13 +79,29 @@
                 </span>
               </td>
               <td class="py-3 px-3 text-right font-semibold text-white whitespace-nowrap">
-                {{ store.unitSystem === 'metric' ? `${act.distanceKm} km` : `${act.distanceMiles} mi` }}
+                <span v-if="act.distanceKm > 0">
+                  {{ store.unitSystem === 'metric' ? `${act.distanceKm} km` : `${act.distanceMiles} mi` }}
+                </span>
+                <span v-else class="text-slate-600">--</span>
               </td>
-              <td class="py-3 px-3 text-right text-slate-400 whitespace-nowrap">
+              <td class="py-3 px-3 text-right text-slate-300 whitespace-nowrap">
                 {{ formatSec(act.movingTimeSec) }}
               </td>
-              <td class="py-3 px-3 text-right text-slate-400 whitespace-nowrap">
-                {{ store.unitSystem === 'metric' ? `${act.elevationGainM} m` : `${act.elevationGainFt} ft` }}
+              <td class="py-3 px-3 text-right whitespace-nowrap">
+                <span v-if="act.avgHeartRate" class="text-rose-400 font-bold">
+                  {{ act.avgHeartRate }} bpm
+                  <span v-if="act.maxHeartRate" class="text-[10px] text-slate-500 font-normal"> ({{ act.maxHeartRate }})</span>
+                </span>
+                <span v-else class="text-slate-600">--</span>
+              </td>
+              <td class="py-3 px-3 text-right whitespace-nowrap">
+                <span v-if="act.calories" class="text-amber-400">
+                  {{ act.calories }} kcal
+                </span>
+                <span v-else-if="act.relativeEffort" class="text-orange-400">
+                  {{ act.relativeEffort }} pts
+                </span>
+                <span v-else class="text-slate-600">--</span>
               </td>
               <td class="py-3 px-3 text-right text-slate-400 whitespace-nowrap">
                 <span v-if="act.sport === 'Run' || act.sport === 'Walk'">
@@ -92,14 +110,15 @@
                 <span v-else-if="act.sport === 'Ride'">
                   {{ act.speedKmh }} km/h
                 </span>
+                <span v-else-if="act.sport === 'Workout'">
+                  Workout
+                </span>
                 <span v-else>--</span>
               </td>
               <td class="py-3 px-3 text-right text-slate-400 whitespace-nowrap">
-                <span v-if="act.avgHeartRate" class="text-rose-400">{{ act.avgHeartRate }} bpm</span>
-                <span v-else class="text-slate-600">--</span>
-              </td>
-              <td class="py-3 px-3 text-right text-slate-400 whitespace-nowrap">
-                <span v-if="act.relativeEffort" class="text-orange-400 font-bold">{{ act.relativeEffort }}</span>
+                <span v-if="act.elevationGainM > 0">
+                  {{ store.unitSystem === 'metric' ? `${act.elevationGainM} m` : `${act.elevationGainFt} ft` }}
+                </span>
                 <span v-else class="text-slate-600">--</span>
               </td>
               <td class="py-3 px-3 font-sans text-[11px] text-slate-400 max-w-[140px] truncate">
@@ -113,7 +132,7 @@
       <!-- Pagination Controls -->
       <div class="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
         <div>
-          Showing <span class="font-bold text-white">{{ startIndex + 1 }}</span> to
+          Showing <span class="font-bold text-white">{{ filteredList.length > 0 ? startIndex + 1 : 0 }}</span> to
           <span class="font-bold text-white">{{ Math.min(filteredList.length, startIndex + pageSize) }}</span> of
           <span class="font-bold text-white">{{ filteredList.length }}</span> workouts
         </div>
@@ -159,7 +178,7 @@ const filteredList = computed(() => {
 
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase().trim();
-    list = list.filter(a => a.title.toLowerCase().includes(q) || a.gear.toLowerCase().includes(q));
+    list = list.filter(a => (a.title || '').toLowerCase().includes(q) || (a.gear || '').toLowerCase().includes(q));
   }
 
   // Sorting
@@ -173,6 +192,10 @@ const filteredList = computed(() => {
     list.sort((a, b) => b.elevationGainM - a.elevationGainM);
   } else if (sortBy.value === 'time_desc') {
     list.sort((a, b) => b.movingTimeSec - a.movingTimeSec);
+  } else if (sortBy.value === 'hr_desc') {
+    list.sort((a, b) => (b.avgHeartRate || 0) - (a.avgHeartRate || 0));
+  } else if (sortBy.value === 'cal_desc') {
+    list.sort((a, b) => (b.calories || 0) - (a.calories || 0));
   }
 
   return list;
@@ -196,8 +219,10 @@ function formatPaceVal(minKm: number) {
 function getSportTagClass(sport: string) {
   if (sport === 'Run') return 'bg-orange-500/10 text-orange-400 border border-orange-500/20';
   if (sport === 'Ride') return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+  if (sport === 'Workout') return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
+  if (sport === 'Walk') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
   if (sport === 'Swim') return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
   if (sport === 'Hike') return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-  return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
+  return 'bg-slate-800 text-slate-400 border border-slate-700';
 }
 </script>

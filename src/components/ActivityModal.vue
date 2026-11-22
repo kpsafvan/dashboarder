@@ -32,6 +32,40 @@
         </p>
       </div>
 
+      <!-- Strava Best Efforts & Medals (if activity holds any all-time top 10) -->
+      <div v-if="activityBestEfforts.length > 0" class="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="text-base">🏆</span>
+          <h3 class="text-xs font-bold text-amber-300 uppercase tracking-wider">
+            All-Time Best Efforts & Top 10 Medals
+          </h3>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div
+            v-for="effort in activityBestEfforts"
+            :key="effort.categoryName"
+            class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/90 border border-slate-800"
+          >
+            <div class="flex items-center gap-2">
+              <span v-if="effort.rank === 1" class="text-base">🥇</span>
+              <span v-else-if="effort.rank === 2" class="text-base">🥈</span>
+              <span v-else-if="effort.rank === 3" class="text-base">🥉</span>
+              <span v-else class="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">#{{ effort.rank }}</span>
+              <div>
+                <span class="text-xs font-bold text-white block">{{ effort.categoryName }}</span>
+                <span class="text-[10px] text-slate-400">{{ effort.secondaryValue }}</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-extrabold text-orange-400 mono-font block">{{ effort.value }}</span>
+              <span class="text-[9px] uppercase font-bold" :class="effort.rank === 1 ? 'text-amber-400' : 'text-slate-500'">
+                {{ effort.rank === 1 ? 'PR' : `${effort.rank}th Best` }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Core Metrics Grid -->
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         
@@ -132,6 +166,11 @@ import { formatDuration, formatPace } from '../services/analytics';
 const store = useStravaStore();
 
 const activity = computed(() => store.selectedActivity);
+
+const activityBestEfforts = computed(() => {
+  if (!activity.value) return [];
+  return store.activityBestEfforts(activity.value.id);
+});
 
 const hrZoneTag = computed(() => {
   if (!activity.value?.avgHeartRate) return null;

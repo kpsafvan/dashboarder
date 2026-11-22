@@ -5,6 +5,8 @@ import type {
   HeartRateZone,
   GearSummary,
   PersonalRecord,
+  BestEffortItem,
+  BestEffortCategory,
   UnitSystem,
 } from '../types/strava';
 
@@ -445,4 +447,497 @@ export function formatPace(decimalMinutes: number, unit: UnitSystem = 'metric'):
   const min = Math.floor(decimalMinutes);
   const sec = Math.round((decimalMinutes - min) * 60);
   return `${min}:${sec < 10 ? '0' : ''}${sec} /${unit === 'metric' ? 'km' : 'mi'}`;
+}
+
+function formatEffortDate(date: Date): string {
+  try {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return String(date);
+  }
+}
+
+/**
+ * Computes Strava-grade Best Efforts & Top 10s Leaderboards
+ * across running distance benchmarks, endurance, workouts, and cardiovascular intensity.
+ */
+export function computeBestEffortsAndTop10s(
+  activities: NormalizedActivity[],
+  unit: UnitSystem = 'metric'
+): BestEffortCategory[] {
+  const categories: BestEffortCategory[] = [];
+
+  const runs = activities.filter(
+    a => a.sport === 'Run' && a.distanceKm > 0 && a.paceMinPerKm >= 2.3 && a.paceMinPerKm <= 20
+  );
+  const rides = activities.filter(a => a.sport === 'Ride' && a.distanceKm > 0);
+  const walks = activities.filter(a => (a.sport === 'Walk' || a.sport === 'Hike') && a.distanceKm > 0);
+  const workouts = activities.filter(a => a.sport === 'Workout' && a.movingTimeSec >= 300);
+
+  // 1. Running Benchmark Distances
+  const runBenchmarks = [
+    { id: 'run_400m', name: '400m Sprint', shortName: '400m', meters: 400, desc: 'Fastest estimated 400m sprint' },
+    { id: 'run_800m', name: '1/2 Mile (800m)', shortName: '800m', meters: 804.67, desc: 'Fastest estimated 800m / half-mile benchmark' },
+    { id: 'run_1k', name: '1k Sprint', shortName: '1k', meters: 1000, desc: 'Fastest estimated 1 kilometer benchmark split' },
+    { id: 'run_1m', name: '1 Mile Benchmark', shortName: '1 Mile', meters: 1609.34, desc: 'Fastest estimated 1 mile benchmark' },
+    { id: 'run_2m', name: '2 Miles Benchmark', shortName: '2 Miles', meters: 3218.69, desc: 'Fastest estimated 2 miles benchmark' },
+    { id: 'run_5k', name: '5K Road Race', shortName: '5k', meters: 5000, desc: 'Fastest estimated 5 kilometer effort' },
+    { id: 'run_10k', name: '10K Road Race', shortName: '10k', meters: 10000, desc: 'Fastest estimated 10 kilometer effort' },
+    { id: 'run_15k', name: '15K Run', shortName: '15k', meters: 15000, desc: 'Fastest estimated 15 kilometer effort' },
+    { id: 'run_half', name: 'Half Marathon', shortName: 'Half', meters: 21097.5, desc: 'Fastest estimated Half Marathon (21.1 km)' },
+    { id: 'run_marathon', name: 'Full Marathon', shortName: 'Marathon', meters: 42195, desc: 'Fastest estimated Full Marathon (42.2 km)' },
+  ];
+
+  for (const b of runBenchmarks) {
+    const qualifying = runs.filter(r => r.distanceMeters >= b.meters * 0.96);
+    if (qualifying.length === 0) continue;
+
+    const mapped: BestEffortItem[] = qualifying
+      .map(r => {
+        const splitSec = Math.round((b.meters / r.distanceMeters) * r.movingTimeSec);
+        const paceVal = unit === 'metric' ? r.paceMinPerKm : r.paceMinPerMile;
+        return {
+          rank: 1,
+          activityId: r.id,
+          activityTitle: r.title,
+          sport: r.sport,
+          date: formatEffortDate(r.date),
+          rawDate: r.date,
+          year: r.year,
+          value: formatDuration(splitSec, true),
+          numericValue: splitSec,
+          secondaryLabel: 'Pace',
+          secondaryValue: formatPace(paceVal, unit),
+          extraInfo: `From ${unit === 'metric' ? r.distanceKm.toFixed(2) + ' km' : r.distanceMiles.toFixed(2) + ' mi'} run`,
+          activity: r,
+        };
+      })
+      .sort((a, b) => a.numericValue - b.numericValue);
+
+    const top10 = mapped.slice(0, 10).map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+    // Year-over-Year Progression (fastest split per calendar year)
+    const yearMap: Record<number, BestEffortItem> = {};
+    for (const item of mapped) {
+      if (!yearMap[item.year] || item.numericValue < yearMap[item.year].numericValue) {
+        yearMap[item.year] = item;
+      }
+    }
+    const yearBests = Object.keys(yearMap)
+      .map(y => ({ year: Number(y), item: yearMap[Number(y)] }))
+      .sort((a, b) => b.year - a.year);
+
+    categories.push({
+      id: b.id,
+      name: b.name,
+      shortName: b.shortName,
+      categoryGroup: 'running',
+      sport: 'Run',
+      metricType: 'time',
+      benchmarkDistanceMeters: b.meters,
+      unit: 'time',
+      description: b.desc,
+      items: top10,
+      prItem: top10[0],
+      yearBests,
+    });
+  }
+
+  // 2. Endurance Categories
+  // Longest Run
+  if (runs.length > 0) {
+    const sorted = [...runs].sort((a, b) => b.distanceKm - a.distanceKm);
+    const top10: BestEffortItem[] = sorted.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: unit === 'metric' ? `${r.distanceKm.toFixed(2)} km` : `${r.distanceMiles.toFixed(2)} mi`,
+      numericValue: r.distanceKm,
+      secondaryLabel: 'Duration & Pace',
+      secondaryValue: `${formatDuration(r.movingTimeSec, true)} • ${formatPace(unit === 'metric' ? r.paceMinPerKm : r.paceMinPerMile, unit)}`,
+      extraInfo: r.elevationGainM > 0 ? `+${r.elevationGainM}m vert` : undefined,
+      activity: r,
+    }));
+
+    const yearMap: Record<number, NormalizedActivity> = {};
+    for (const r of sorted) {
+      if (!yearMap[r.year] || r.distanceKm > yearMap[r.year].distanceKm) {
+        yearMap[r.year] = r;
+      }
+    }
+    const yearBests = Object.keys(yearMap)
+      .map(y => {
+        const r = yearMap[Number(y)];
+        return {
+          year: Number(y),
+          item: {
+            rank: 1,
+            activityId: r.id,
+            activityTitle: r.title,
+            sport: r.sport,
+            date: formatEffortDate(r.date),
+            rawDate: r.date,
+            year: r.year,
+            value: unit === 'metric' ? `${r.distanceKm.toFixed(2)} km` : `${r.distanceMiles.toFixed(2)} mi`,
+            numericValue: r.distanceKm,
+            secondaryLabel: 'Duration',
+            secondaryValue: formatDuration(r.movingTimeSec, true),
+            activity: r,
+          },
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+
+    categories.push({
+      id: 'longest_run',
+      name: 'Longest Run',
+      shortName: 'Long Run',
+      categoryGroup: 'endurance',
+      sport: 'Run',
+      metricType: 'distance',
+      unit: unit === 'metric' ? 'km' : 'mi',
+      description: 'Top 10 farthest single running distances achieved',
+      items: top10,
+      prItem: top10[0],
+      yearBests,
+    });
+  }
+
+  // Longest Ride
+  if (rides.length > 0) {
+    const sorted = [...rides].sort((a, b) => b.distanceKm - a.distanceKm);
+    const top10: BestEffortItem[] = sorted.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: unit === 'metric' ? `${r.distanceKm.toFixed(2)} km` : `${r.distanceMiles.toFixed(2)} mi`,
+      numericValue: r.distanceKm,
+      secondaryLabel: 'Avg Speed',
+      secondaryValue: unit === 'metric' ? `${r.speedKmh.toFixed(1)} km/h` : `${r.speedMph.toFixed(1)} mph`,
+      extraInfo: `Time: ${formatDuration(r.movingTimeSec, true)}`,
+      activity: r,
+    }));
+
+    const yearMap: Record<number, NormalizedActivity> = {};
+    for (const r of sorted) {
+      if (!yearMap[r.year] || r.distanceKm > yearMap[r.year].distanceKm) {
+        yearMap[r.year] = r;
+      }
+    }
+    const yearBests = Object.keys(yearMap)
+      .map(y => {
+        const r = yearMap[Number(y)];
+        return {
+          year: Number(y),
+          item: {
+            rank: 1,
+            activityId: r.id,
+            activityTitle: r.title,
+            sport: r.sport,
+            date: formatEffortDate(r.date),
+            rawDate: r.date,
+            year: r.year,
+            value: unit === 'metric' ? `${r.distanceKm.toFixed(2)} km` : `${r.distanceMiles.toFixed(2)} mi`,
+            numericValue: r.distanceKm,
+            secondaryLabel: 'Avg Speed',
+            secondaryValue: unit === 'metric' ? `${r.speedKmh.toFixed(1)} km/h` : `${r.speedMph.toFixed(1)} mph`,
+            activity: r,
+          },
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+
+    categories.push({
+      id: 'longest_ride',
+      name: 'Longest Ride',
+      shortName: 'Long Ride',
+      categoryGroup: 'endurance',
+      sport: 'Ride',
+      metricType: 'distance',
+      unit: unit === 'metric' ? 'km' : 'mi',
+      description: 'Top 10 farthest single cycling rides achieved',
+      items: top10,
+      prItem: top10[0],
+      yearBests,
+    });
+  }
+
+  // Longest Walk / Hike
+  if (walks.length > 0) {
+    const sorted = [...walks].sort((a, b) => b.distanceKm - a.distanceKm);
+    const top10: BestEffortItem[] = sorted.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: unit === 'metric' ? `${r.distanceKm.toFixed(2)} km` : `${r.distanceMiles.toFixed(2)} mi`,
+      numericValue: r.distanceKm,
+      secondaryLabel: 'Duration',
+      secondaryValue: formatDuration(r.movingTimeSec, true),
+      extraInfo: r.avgHeartRate ? `${r.avgHeartRate} bpm avg` : undefined,
+      activity: r,
+    }));
+
+    categories.push({
+      id: 'longest_walk',
+      name: 'Longest Walk / Hike',
+      shortName: 'Long Walk',
+      categoryGroup: 'endurance',
+      sport: 'Walk',
+      metricType: 'distance',
+      unit: unit === 'metric' ? 'km' : 'mi',
+      description: 'Top 10 farthest walking or hiking adventures',
+      items: top10,
+      prItem: top10[0],
+      yearBests: [],
+    });
+  }
+
+  // Biggest Elevation Climb
+  const climbs = activities.filter(a => a.elevationGainM > 0).sort((a, b) => b.elevationGainM - a.elevationGainM);
+  if (climbs.length > 0) {
+    const top10: BestEffortItem[] = climbs.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: unit === 'metric' ? `${r.elevationGainM.toLocaleString()} m` : `${r.elevationGainFt.toLocaleString()} ft`,
+      numericValue: r.elevationGainM,
+      secondaryLabel: 'Sport & Dist',
+      secondaryValue: `${r.sport} • ${unit === 'metric' ? r.distanceKm.toFixed(1) + ' km' : r.distanceMiles.toFixed(1) + ' mi'}`,
+      activity: r,
+    }));
+
+    categories.push({
+      id: 'biggest_climb',
+      name: 'Biggest Elevation Climb',
+      shortName: 'Climb',
+      categoryGroup: 'endurance',
+      sport: 'All',
+      metricType: 'elevation',
+      unit: unit === 'metric' ? 'm' : 'ft',
+      description: 'Top 10 greatest vertical elevation gains conquered',
+      items: top10,
+      prItem: top10[0],
+      yearBests: [],
+    });
+  }
+
+  // 3. Workouts & Intensity Categories
+  // Longest Gym Workout
+  if (workouts.length > 0) {
+    const sorted = [...workouts].sort((a, b) => b.movingTimeSec - a.movingTimeSec);
+    const top10: BestEffortItem[] = sorted.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: formatDuration(r.movingTimeSec, true),
+      numericValue: r.movingTimeSec,
+      secondaryLabel: 'Burn & HR',
+      secondaryValue: `${r.calories ? r.calories + ' kcal' : '--'}${r.avgHeartRate ? ' • ' + r.avgHeartRate + ' bpm' : ''}`,
+      activity: r,
+    }));
+
+    const yearMap: Record<number, NormalizedActivity> = {};
+    for (const r of sorted) {
+      if (!yearMap[r.year] || r.movingTimeSec > yearMap[r.year].movingTimeSec) {
+        yearMap[r.year] = r;
+      }
+    }
+    const yearBests = Object.keys(yearMap)
+      .map(y => {
+        const r = yearMap[Number(y)];
+        return {
+          year: Number(y),
+          item: {
+            rank: 1,
+            activityId: r.id,
+            activityTitle: r.title,
+            sport: r.sport,
+            date: formatEffortDate(r.date),
+            rawDate: r.date,
+            year: r.year,
+            value: formatDuration(r.movingTimeSec, true),
+            numericValue: r.movingTimeSec,
+            secondaryLabel: 'Burn & HR',
+            secondaryValue: `${r.calories ? r.calories + ' kcal' : '--'}${r.avgHeartRate ? ' • ' + r.avgHeartRate + ' bpm' : ''}`,
+            activity: r,
+          },
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+
+    categories.push({
+      id: 'longest_workout',
+      name: 'Longest Gym Workout',
+      shortName: 'Gym Time',
+      categoryGroup: 'workout',
+      sport: 'Workout',
+      metricType: 'duration',
+      unit: 'duration',
+      description: 'Top 10 longest gym and functional training sessions',
+      items: top10,
+      prItem: top10[0],
+      yearBests,
+    });
+  }
+
+  // Highest Calorie Burn
+  const caloriesActs = activities
+    .filter(a => a.calories !== null && a.calories > 0)
+    .sort((a, b) => (b.calories || 0) - (a.calories || 0));
+  if (caloriesActs.length > 0) {
+    const top10: BestEffortItem[] = caloriesActs.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: `${r.calories?.toLocaleString()} kcal`,
+      numericValue: r.calories || 0,
+      secondaryLabel: 'Sport & Time',
+      secondaryValue: `${r.sport} • ${formatDuration(r.movingTimeSec, true)}`,
+      extraInfo: unit === 'metric' && r.distanceKm > 0 ? `${r.distanceKm.toFixed(1)} km` : undefined,
+      activity: r,
+    }));
+
+    const yearMap: Record<number, NormalizedActivity> = {};
+    for (const r of caloriesActs) {
+      if (!yearMap[r.year] || (r.calories || 0) > (yearMap[r.year].calories || 0)) {
+        yearMap[r.year] = r;
+      }
+    }
+    const yearBests = Object.keys(yearMap)
+      .map(y => {
+        const r = yearMap[Number(y)];
+        return {
+          year: Number(y),
+          item: {
+            rank: 1,
+            activityId: r.id,
+            activityTitle: r.title,
+            sport: r.sport,
+            date: formatEffortDate(r.date),
+            rawDate: r.date,
+            year: r.year,
+            value: `${r.calories?.toLocaleString()} kcal`,
+            numericValue: r.calories || 0,
+            secondaryLabel: 'Sport & Time',
+            secondaryValue: `${r.sport} • ${formatDuration(r.movingTimeSec, true)}`,
+            activity: r,
+          },
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+
+    categories.push({
+      id: 'highest_calories',
+      name: 'Highest Calorie Burn',
+      shortName: 'Calories',
+      categoryGroup: 'workout',
+      sport: 'All',
+      metricType: 'calories',
+      unit: 'kcal',
+      description: 'Top 10 highest caloric output workouts across all sports',
+      items: top10,
+      prItem: top10[0],
+      yearBests,
+    });
+  }
+
+  // Peak Heart Rate
+  const peakHrActs = activities
+    .filter(a => a.maxHeartRate !== null && a.maxHeartRate >= 100 && a.maxHeartRate <= 235)
+    .sort((a, b) => (b.maxHeartRate || 0) - (a.maxHeartRate || 0));
+  if (peakHrActs.length > 0) {
+    const top10: BestEffortItem[] = peakHrActs.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: `${r.maxHeartRate} bpm`,
+      numericValue: r.maxHeartRate || 0,
+      secondaryLabel: 'Avg HR & Sport',
+      secondaryValue: `${r.avgHeartRate ? r.avgHeartRate + ' bpm avg' : '--'} (${r.sport})`,
+      activity: r,
+    }));
+
+    categories.push({
+      id: 'peak_hr',
+      name: 'Peak Heart Rate',
+      shortName: 'Peak HR',
+      categoryGroup: 'intensity',
+      sport: 'All',
+      metricType: 'hr',
+      unit: 'bpm',
+      description: 'Top 10 highest instantaneous maximum heart rates reached',
+      items: top10,
+      prItem: top10[0],
+      yearBests: [],
+    });
+  }
+
+  // Highest Sustained Heart Rate (activities >= 20 mins)
+  const avgHrActs = activities
+    .filter(a => a.avgHeartRate !== null && a.avgHeartRate >= 100 && a.movingTimeSec >= 1200)
+    .sort((a, b) => (b.avgHeartRate || 0) - (a.avgHeartRate || 0));
+  if (avgHrActs.length > 0) {
+    const top10: BestEffortItem[] = avgHrActs.slice(0, 10).map((r, idx) => ({
+      rank: idx + 1,
+      activityId: r.id,
+      activityTitle: r.title,
+      sport: r.sport,
+      date: formatEffortDate(r.date),
+      rawDate: r.date,
+      year: r.year,
+      value: `${r.avgHeartRate} bpm`,
+      numericValue: r.avgHeartRate || 0,
+      secondaryLabel: 'Peak & Time',
+      secondaryValue: `Max ${r.maxHeartRate || '--'} bpm • ${formatDuration(r.movingTimeSec, true)} (${r.sport})`,
+      activity: r,
+    }));
+
+    categories.push({
+      id: 'highest_avg_hr',
+      name: 'Highest Sustained HR (20m+)',
+      shortName: 'Sustained HR',
+      categoryGroup: 'intensity',
+      sport: 'All',
+      metricType: 'hr',
+      unit: 'bpm',
+      description: 'Top 10 highest average heart rates sustained for 20+ minutes',
+      items: top10,
+      prItem: top10[0],
+      yearBests: [],
+    });
+  }
+
+  return categories;
 }

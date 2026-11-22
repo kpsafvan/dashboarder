@@ -114,3 +114,34 @@ export interface PersonalRecord {
   value: string;
   numericValue: number;
 }
+
+export interface BestEffortItem {
+  rank: number;
+  activityId: string;
+  activityTitle: string;
+  sport: SportType;
+  date: string;
+  rawDate: Date;
+  year: number;
+  value: string;
+  numericValue: number;
+  secondaryLabel: string;
+  secondaryValue: string;
+  extraInfo?: string;
+  activity: NormalizedActivity;
+}
+
+export interface BestEffortCategory {
+  id: string;
+  name: string;
+  shortName: string;
+  categoryGroup: 'running' | 'endurance' | 'workout' | 'intensity';
+  sport: SportType | 'All';
+  metricType: 'time' | 'distance' | 'elevation' | 'duration' | 'calories' | 'hr';
+  benchmarkDistanceMeters?: number;
+  unit: string;
+  description: string;
+  items: BestEffortItem[];
+  prItem?: BestEffortItem;
+  yearBests: { year: number; item: BestEffortItem }[];
+}

@@ -11,6 +11,8 @@ import type {
   HeartRateZone,
   GearSummary,
   PersonalRecord,
+  BestEffortCategory,
+  BestEffortItem,
 } from '../types/strava';
 import { parseStravaFile, parseCsvText } from '../services/parser';
 import {
@@ -20,6 +22,7 @@ import {
   computeHeartRateZones,
   computeGearSummaries,
   computePersonalRecords,
+  computeBestEffortsAndTop10s,
 } from '../services/analytics';
 
 const DB_ACTIVITIES_KEY = 'strava_dashboard_activities';
@@ -220,6 +223,29 @@ export const useStravaStore = defineStore('strava', {
 
     personalRecords(): PersonalRecord[] {
       return computePersonalRecords(this.activities, this.unitSystem);
+    },
+
+    bestEffortsCategories(): BestEffortCategory[] {
+      return computeBestEffortsAndTop10s(this.activities, this.unitSystem);
+    },
+
+    activityBestEfforts(): (activityId: string) => { categoryName: string; rank: number; value: string; secondaryValue: string }[] {
+      return (activityId: string) => {
+        const results: { categoryName: string; rank: number; value: string; secondaryValue: string }[] = [];
+        const cats = this.bestEffortsCategories;
+        for (const cat of cats) {
+          const match = cat.items.find(item => item.activityId === activityId);
+          if (match) {
+            results.push({
+              categoryName: cat.name,
+              rank: match.rank,
+              value: match.value,
+              secondaryValue: match.secondaryValue,
+            });
+          }
+        }
+        return results.sort((a, b) => a.rank - b.rank);
+      };
     },
   },
 
